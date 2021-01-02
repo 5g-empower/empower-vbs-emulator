@@ -28,6 +28,7 @@ from empower_vbs_emulator.vbs import VBS
 
 
 def main():
+    """Main module."""
 
     # parse arguments
     parser = ArgumentParser()
