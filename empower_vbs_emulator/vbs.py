@@ -17,9 +17,6 @@
 
 """Emulated VBS."""
 
-import time
-import socket
-import requests
 import tornado.ioloop
 
 from construct import Container
@@ -33,8 +30,11 @@ from empower_core.etheraddress import EtherAddress
 
 import empower_vbs_emulator.vbsp as vbsp
 
+from empower_vbs_emulator.user import User, USER_STATUS_CONNECTED
+
 
 class VBS:
+    """Emulated Virtual Base Station."""
 
     def __init__(self, address, port, scenario):
 
@@ -47,12 +47,28 @@ class VBS:
         self.address = address
         self.port = port
 
+        # The sequence number
+        self._seq = 0
+
+        # The transaction number
+        self._xid = 0
+
+        # The next RNTI
+        self._rnti = 70
+
         # set scenario
+        print("+----------------------------------------------------+")
+        print("Setting Scenario")
         self.plmnid = scenario['plmnid']
-        self.pci = scenario['pci']
         self.device = EtherAddress(scenario['device'])
-        self.ues = scenario['ues']
+        self.cells = {}
+        for cell in scenario['cells'].values():
+            self.add_cell(cell)
+        self.users = {}
+        for user in scenario['users'].values():
+            self.add_user(user)
         self.period = int(scenario['period'])
+        print("+----------------------------------------------------+")
 
         # Worker process, set only if every > 0
         self.worker = None
@@ -65,12 +81,6 @@ class VBS:
 
         # The reading buffer
         self.buffer = b''
-
-        # The sequence number
-        self._seq = 0
-
-        # The transaction number
-        self._xid = 0
 
     @property
     def xid(self):
@@ -86,15 +96,53 @@ class VBS:
         self._seq += 1
         return self._seq
 
+    @property
+    def rnti(self):
+        """Return next rnti."""
+
+        self._rnti += 1
+        return self._rnti
+
+    def add_user(self, user):
+        """Add a new UE."""
+
+        imsi = IMSI(user['imsi'])
+        tmsi = int(user['tmsi'])
+        rnti = self.rnti
+
+        print("Adding UE (IMSI=%s, TMSI=%u, RNTI=%u)" % (imsi, tmsi, rnti))
+
+        pci = int(user['pci'], 16)
+        cell = self.cells[pci]
+
+        user = User(imsi, tmsi, rnti, cell, USER_STATUS_CONNECTED)
+
+        self.users[imsi] = user
+
+    def add_cell(self, cell):
+        """Add a new Cell."""
+
+        pci = int(cell['pci'], 16)
+        dl_earfcn = int(cell['dl_earfcn'])
+        ul_earfcn = int(cell['ul_earfcn'])
+        n_prbs = int(cell['n_prbs'])
+
+        print("Adding Cell (PCI=%u, PRBs=%u)" % (pci, n_prbs))
+
+        self.cells[pci] = {
+            'pci': pci,
+            'dl_earfcn': dl_earfcn,
+            'ul_earfcn': ul_earfcn,
+            'n_prbs': n_prbs
+        }
+
     def start(self):
         """Start the VBS."""
 
         print("+----------------------------------------------------+")
         print("Starting 5G-EmPOWER VBS Emulator")
         print("Device: %s" % self.device)
-        print("PCI: %s" % self.pci)
         print("Period: %s" % self.period)
-        print("Number of UEs: %s" % len(self.ues.keys()))
         print("+----------------------------------------------------+")
 
         # Start the control loop
@@ -184,28 +232,67 @@ class VBS:
     def _handle_capabilities_service(self, msg):
         """Handle capabilities request message."""
 
-        self.send_capabilities_service()
+        self.send_capabilities_service(msg)
 
-    def send_capabilities_service(self):
-        """Send an capabilities response message."""
+    def _handle_ue_reports_service(self, msg):
+        """Handle ue reports request message."""
 
-        tlv = Container()
-        tlv.pci = 0
-        tlv.dl_earfcn = 0
-        tlv.ul_earfcn = 0
-        tlv.n_prbs = 0
+        self.send_ue_reports_service(msg)
 
-        value = vbsp.CAPABILITIES_SERVICE_CELL.build(tlv)
+    def send_capabilities_service(self, _):
+        """Send a capabilities response message."""
 
-        tlv = Container()
-        tlv.type = vbsp.PT_CAPABILITIES_SERVICE_CELL
-        tlv.length = 4 + len(value)
-        tlv.value = value
+        tlvs = []
+
+        for cell in self.cells.values():
+
+            tlv = Container()
+            tlv.pci = cell['pci']
+            tlv.dl_earfcn = cell['dl_earfcn']
+            tlv.ul_earfcn = cell['ul_earfcn']
+            tlv.n_prbs = cell['n_prbs']
+
+            value = vbsp.CAPABILITIES_SERVICE_CELL.build(tlv)
+
+            tlv = Container()
+            tlv.type = vbsp.PT_CAPABILITIES_SERVICE_CELL
+            tlv.length = 4 + len(value)
+            tlv.value = value
+
+            tlvs.append(tlv)
 
         return self.send_message(action=vbsp.PT_CAPABILITIES_SERVICE,
                                  msg_type=vbsp.MSG_TYPE_RESPONSE,
                                  crud_result=vbsp.RESULT_SUCCESS,
-                                 tlvs=[tlv])
+                                 tlvs=tlvs)
+
+    def send_ue_reports_service(self, _):
+        """Send a ue reports message."""
+
+        tlvs = []
+
+        for user in self.users.values():
+
+            tlv = Container()
+            tlv.imsi = int(user.imsi.to_str())
+            tlv.tmsi = user.tmsi
+            tlv.rnti = user.rnti
+            tlv.status = user.status
+            tlv.pci = user.cell['pci']
+
+            value = vbsp.UE_REPORTS_SERVICE_IDENTITY.build(tlv)
+
+            tlv = Container()
+            tlv.type = vbsp.PT_UE_REPORTS_SERVICE_IDENTITY
+            tlv.length = 4 + len(value)
+            tlv.value = value
+
+            tlvs.append(tlv)
+
+        return self.send_message(action=vbsp.PT_UE_REPORTS_SERVICE,
+                                 msg_type=vbsp.MSG_TYPE_RESPONSE,
+                                 crud_result=vbsp.RESULT_SUCCESS,
+                                 tlvs=tlvs)
 
     def on_disconnect(self):
         """Handle ctrl disconnection."""

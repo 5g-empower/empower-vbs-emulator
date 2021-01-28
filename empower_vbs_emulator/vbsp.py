@@ -124,6 +124,7 @@ PT_TYPES = {
 
 }
 
+
 def decode_msg(msg_type, crud_result):
     """Return the tuple (msg_type, crud_result)."""
 
