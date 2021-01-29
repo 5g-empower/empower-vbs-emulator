@@ -30,7 +30,8 @@ from empower_core.etheraddress import EtherAddress
 
 import empower_vbs_emulator.vbsp as vbsp
 
-from empower_vbs_emulator.user import User, USER_STATUS_CONNECTED
+from empower_vbs_emulator.user import User, USER_STATUS_CONNECTED, \
+    USER_STATUS_DISCONNECTED
 
 
 class VBS:
@@ -56,19 +57,35 @@ class VBS:
         # The next RNTI
         self._rnti = 70
 
-        # set scenario
-        print("+----------------------------------------------------+")
-        print("Setting Scenario")
-        self.plmnid = scenario['plmnid']
-        self.device = EtherAddress(scenario['device'])
+        # The active users
+        self.users = {}
+
+        # The cells in this VBS
         self.cells = {}
+
+        # The cells in this VBS
+        self.events = []
+
+        # set scenario
+        print("Setting 5G-EmPOWER VBS Emulator...")
+
+        self.plmnid = PLMNID(scenario['plmnid'])
+        self.device = EtherAddress(scenario['device'])
+        self.period = int(scenario['period'])
+
+        print("PLMNID: %s" % self.plmnid)
+        print("Device: %s" % self.device)
+        print("Period: %s" % self.period)
+
         for cell in scenario['cells'].values():
             self.add_cell(cell)
-        self.users = {}
-        for user in scenario['users'].values():
-            self.add_user(user)
-        self.period = int(scenario['period'])
-        print("+----------------------------------------------------+")
+
+        print("Importing %u events" % len(scenario['events']))
+
+        for event in scenario['events']:
+            self.add_event(event)
+
+        self.events.reverse()
 
         # Worker process, set only if every > 0
         self.worker = None
@@ -103,6 +120,20 @@ class VBS:
         self._rnti += 1
         return self._rnti
 
+    def add_event(self, event):
+        """Add a new event."""
+
+        new_event = {
+            "type": event['type'],
+            "delay": int(event['delay']),
+            "payload": event["payload"]
+        }
+
+        print("Adding event %s delay %u" % (new_event['type'],
+              new_event['delay']))
+
+        self.events.append(new_event)
+
     def add_user(self, user):
         """Add a new UE."""
 
@@ -118,6 +149,21 @@ class VBS:
         user = User(imsi, tmsi, rnti, cell, USER_STATUS_CONNECTED)
 
         self.users[imsi] = user
+
+        self.send_ue_reports_service()
+
+    def rem_user(self, user):
+        """Remove a UE."""
+
+        imsi = IMSI(user['imsi'])
+
+        print("Removing UE (IMSI=%s" % imsi)
+
+        self.users[imsi].status = USER_STATUS_DISCONNECTED
+
+        self.send_ue_reports_service()
+
+        del self.users[imsi]
 
     def add_cell(self, cell):
         """Add a new Cell."""
@@ -139,17 +185,40 @@ class VBS:
     def start(self):
         """Start the VBS."""
 
-        print("+----------------------------------------------------+")
-        print("Starting 5G-EmPOWER VBS Emulator")
-        print("Device: %s" % self.device)
-        print("Period: %s" % self.period)
-        print("+----------------------------------------------------+")
+        print("Starting 5G-EmPOWER VBS Emulator...")
 
         # Start the control loop
         self.worker = \
             tornado.ioloop.PeriodicCallback(self.loop, self.period)
 
+        # Schedule first event
+        if self.events:
+            delay = self.events[-1]['delay']
+            self.io_loop.call_later(delay=delay / 1000,
+                                    callback=self.schedule_next_event)
+
         self.worker.start()
+
+    def schedule_next_event(self):
+        """Execute next event in the queue."""
+
+        if not self.events:
+            return
+
+        event = self.events.pop()
+
+        if event['type'] == "ue_join":
+            self.add_user(event['payload'])
+        elif event['type'] == "ue_leave":
+            self.rem_user(event['payload'])
+        else:
+            print("Event %s not supported" % event['type'])
+
+        # Schedule first event
+        if self.events:
+            delay = self.events[-1]['delay']
+            self.io_loop.call_later(delay=delay / 1000,
+                                    callback=self.schedule_next_event)
 
     def wait(self):
         """ Wait for incoming packets on signalling channel """
@@ -232,14 +301,32 @@ class VBS:
     def _handle_capabilities_service(self, msg):
         """Handle capabilities request message."""
 
-        self.send_capabilities_service(msg)
+        self.send_capabilities_service()
 
     def _handle_ue_reports_service(self, msg):
         """Handle ue reports request message."""
 
-        self.send_ue_reports_service(msg)
+        self.send_ue_reports_service()
 
-    def send_capabilities_service(self, _):
+    def _handle_ue_measurements_service(self, msg):
+        """Handle ue measurements request message."""
+
+        # if not a response then ignore
+        if msg.flags.msg_type != vbsp.MSG_TYPE_REQUEST:
+            print("Not a request, ignoring.")
+            return
+
+        # there should be only one tlv
+        for tlv in msg.tlvs:
+
+            if tlv.type == vbsp.TLV_MEASUREMENTS_SERVICE_CONFIG:
+
+                parser = vbsp.TLVS[tlv.type]
+                option = parser.parse(tlv.value)
+
+                print(option)
+
+    def send_capabilities_service(self):
         """Send a capabilities response message."""
 
         tlvs = []
@@ -266,7 +353,7 @@ class VBS:
                                  crud_result=vbsp.RESULT_SUCCESS,
                                  tlvs=tlvs)
 
-    def send_ue_reports_service(self, _):
+    def send_ue_reports_service(self):
         """Send a ue reports message."""
 
         tlvs = []

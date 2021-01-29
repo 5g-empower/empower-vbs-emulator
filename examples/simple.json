@@ -1,0 +1,36 @@
+{
+    "device": "00:00:00:00:01:9B",
+    "period": 2000,
+    "plmnid": "22293",
+    "cells": {
+        "0x03": {
+            "pci": "0x03",
+            "dl_earfcn": 0,
+            "ul_earfcn": 0,
+            "n_prbs": 25
+        }
+    },
+    "events": [
+        {
+            "type": "ue_join",
+            "delay": 5000,
+            "payload": {
+                "imsi": "222930100001114",
+                "tmsi": "12643",
+                "pci": "0x03",
+                "meas": {
+                    "type": "static",
+                    "rsrq:": -10,
+                    "rsrp": -20
+                }
+            }
+        },
+        {
+            "type": "ue_leave",
+            "delay": 5000,
+            "payload": {
+                "imsi": "222930100001114"
+            }
+        }
+    ]
+}
