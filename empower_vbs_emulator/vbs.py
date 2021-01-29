@@ -80,12 +80,8 @@ class VBS:
         for cell in scenario['cells'].values():
             self.add_cell(cell)
 
-        print("Importing %u events" % len(scenario['events']))
-
-        for event in scenario['events']:
-            self.add_event(event)
-
-        self.events.reverse()
+        print("Saving events descriptor")
+        self.events_desc = scenario['events']
 
         # Worker process, set only if every > 0
         self.worker = None
@@ -98,6 +94,12 @@ class VBS:
 
         # The reading buffer
         self.buffer = b''
+
+        # Set when the VBS is connected
+        self.connected = False
+
+        # The callback for the events
+        self.event_callback = None
 
     @property
     def xid(self):
@@ -190,12 +192,6 @@ class VBS:
         # Start the control loop
         self.worker = \
             tornado.ioloop.PeriodicCallback(self.loop, self.period)
-
-        # Schedule first event
-        if self.events:
-            delay = self.events[-1]['delay']
-            self.io_loop.call_later(delay=delay / 1000,
-                                    callback=self.schedule_next_event)
 
         self.worker.start()
 
@@ -301,7 +297,30 @@ class VBS:
     def _handle_capabilities_service(self, _):
         """Handle capabilities request message."""
 
+        print("Sending capabilities...")
+
+        # Answer request
         self.send_capabilities_service()
+
+        # VBS is now fully connected
+        self.connected = True
+
+        # Reset events
+        print("Importing %u events..." % len(self.events_desc))
+        self.events = []
+
+        # Import events from descriptor
+        for event in self.events_desc:
+            self.add_event(event)
+
+        self.events.reverse()
+
+        # Start processing events
+        if self.events:
+            delay = self.events[-1]['delay']
+            self.event_callback = \
+                self.io_loop.call_later(delay=delay / 1000,
+                                        callback=self.schedule_next_event)
 
     def _handle_ue_reports_service(self, _):
         """Handle ue reports request message."""
@@ -394,6 +413,12 @@ class VBS:
 
         # The reading buffer
         self.buffer = b''
+
+        # Set when the VBS is connected
+        self.connected = False
+
+        # Remove callback
+        self.io_loop.remove_timeout(self.event_callback)
 
     @gen.coroutine
     def connect(self):
