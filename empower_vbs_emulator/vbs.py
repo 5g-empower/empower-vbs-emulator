@@ -298,12 +298,12 @@ class VBS:
             handler = getattr(self, handler_name)
             handler(msg)
 
-    def _handle_capabilities_service(self, msg):
+    def _handle_capabilities_service(self, _):
         """Handle capabilities request message."""
 
         self.send_capabilities_service()
 
-    def _handle_ue_reports_service(self, msg):
+    def _handle_ue_reports_service(self, _):
         """Handle ue reports request message."""
 
         self.send_ue_reports_service()

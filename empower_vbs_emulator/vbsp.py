@@ -17,8 +17,8 @@
 
 """5G-EMPOWER southbound protocol."""
 
-from construct import Struct, Int8ub, Int16ub, Int32ub, Flag, Bytes, Bit, \
-    BitStruct, Padding, BitsInteger, Array, GreedyRange, Byte, this, Int64ub
+from construct import Struct, Int8ub, Int16ub, Int32ub, Flag, Bytes, \
+    BitStruct, Padding, BitsInteger, GreedyRange, this, Int64ub
 
 PT_VERSION = 0x02
 
