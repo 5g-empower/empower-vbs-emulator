@@ -30,34 +30,31 @@ USER_STATUS = {
 
 @serializable_dict
 class User():
-    """User Equipment
+    """User Equipment."""
 
-    Attributes:
-        imsi: the UE IMSI
-        tmsi: the UE TMSI
-        rnti: the UE RNTI
-        status: the status of the UE (1=connected, 2=disconnected)
-    """
-
-    def __init__(self, imsi, tmsi, rnti, cell, status):
+    def __init__(self, imsi, tmsi, rnti, cell, vbs, status):
         self.imsi = imsi
         self.tmsi = tmsi
         self.rnti = rnti
-        self.status = status
         self.cell = cell
+        self.vbs = vbs
+        self.status = status
         self.ue_measurements = {}
+
+    def start(self):
+        """Start User tasks."""
+
+    def stop(self):
+        """Stop User tasks."""
+
+        for meas in self.ue_measurements.values():
+            meas.stop()
 
     @property
     def plmnid(self):
         """Return the vbs."""
 
         return self.imsi.plmnid
-
-    @property
-    def vbs(self):
-        """Return the vbs."""
-
-        return self.cell.vbs
 
     def to_dict(self):
         """Return JSON-serializable representation of the object."""

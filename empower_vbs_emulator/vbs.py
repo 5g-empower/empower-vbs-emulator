@@ -32,6 +32,7 @@ import empower_vbs_emulator.vbsp as vbsp
 
 from empower_vbs_emulator.user import User, USER_STATUS_CONNECTED, \
     USER_STATUS_DISCONNECTED
+from empower_vbs_emulator.measurement import Measurement
 
 
 class VBS:
@@ -148,9 +149,10 @@ class VBS:
         pci = int(user['pci'], 16)
         cell = self.cells[pci]
 
-        user = User(imsi, tmsi, rnti, cell, USER_STATUS_CONNECTED)
+        user = User(imsi, tmsi, rnti, cell, self, USER_STATUS_CONNECTED)
 
         self.users[imsi] = user
+        user.start()
 
         self.send_ue_reports_service()
 
@@ -159,12 +161,13 @@ class VBS:
 
         imsi = IMSI(user['imsi'])
 
-        print("Removing UE (IMSI=%s" % imsi)
+        print("Removing UE (IMSI=%s)" % imsi)
 
         self.users[imsi].status = USER_STATUS_DISCONNECTED
 
         self.send_ue_reports_service()
 
+        self.users[imsi].stop()
         del self.users[imsi]
 
     def add_cell(self, cell):
@@ -343,7 +346,20 @@ class VBS:
                 parser = vbsp.TLVS[tlv.type]
                 option = parser.parse(tlv.value)
 
-                print(option)
+                for user in self.users.values():
+
+                    if user.rnti != option.rnti:
+                        continue
+
+                    meas = Measurement(option.rnti, option.meas_id,
+                                       option.interval, option.amount,
+                                       user)
+
+                    if msg.tsrc.crud_result == vbsp.OP_CREATE:
+                        user.ue_measurements[option.meas_id] = meas
+                        meas.start()
+                    else:
+                        print("Service config operation unsupported")
 
     def send_capabilities_service(self):
         """Send a capabilities response message."""
@@ -396,6 +412,31 @@ class VBS:
             tlvs.append(tlv)
 
         return self.send_message(action=vbsp.PT_UE_REPORTS_SERVICE,
+                                 msg_type=vbsp.MSG_TYPE_RESPONSE,
+                                 crud_result=vbsp.RESULT_SUCCESS,
+                                 tlvs=tlvs)
+
+    def send_ue_measurements(self, rnti, meas_id, rsrp, rsrq):
+        """Send a ue reports message."""
+
+        tlvs = []
+
+        tlv = Container()
+        tlv.rnti = rnti
+        tlv.meas_id = meas_id
+        tlv.rsrp = rsrp
+        tlv.rsrq = rsrq
+
+        value = vbsp.UE_MEASUREMENTS_SERVICE_REPORT.build(tlv)
+
+        tlv = Container()
+        tlv.type = vbsp.TLV_MEASUREMENTS_SERVICE_REPORT
+        tlv.length = 4 + len(value)
+        tlv.value = value
+
+        tlvs.append(tlv)
+
+        return self.send_message(action=vbsp.PT_UE_MEASUREMENTS_SERVICE,
                                  msg_type=vbsp.MSG_TYPE_RESPONSE,
                                  crud_result=vbsp.RESULT_SUCCESS,
                                  tlvs=tlvs)
