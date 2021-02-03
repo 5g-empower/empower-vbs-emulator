@@ -32,12 +32,13 @@ USER_STATUS = {
 class User():
     """User Equipment."""
 
-    def __init__(self, imsi, tmsi, rnti, cell, vbs, status):
+    def __init__(self, imsi, tmsi, rnti, cell, vbs, trace, status):
         self.imsi = imsi
         self.tmsi = tmsi
         self.rnti = rnti
         self.cell = cell
         self.vbs = vbs
+        self.trace = trace
         self.status = status
         self.ue_measurements = {}
 

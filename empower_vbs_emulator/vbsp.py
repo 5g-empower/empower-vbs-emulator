@@ -18,7 +18,7 @@
 """5G-EMPOWER southbound protocol."""
 
 from construct import Struct, Int8ub, Int16ub, Int32ub, Flag, Bytes, \
-    BitStruct, Padding, BitsInteger, GreedyRange, this, Int64ub
+    BitStruct, Padding, BitsInteger, GreedyRange, this, Int64ub, Int8sb
 
 PT_VERSION = 0x02
 
@@ -129,8 +129,8 @@ UE_MEASUREMENTS_SERVICE_MEAS_ID.name = "ue_measurements_service_meas_id"
 UE_MEASUREMENTS_SERVICE_REPORT = Struct(
     "rnti" / Int16ub,
     "meas_id" / Int8ub,
-    "rsrp" / Int8ub,
-    "rsrq" / Int8ub,
+    "rsrp" / Int8sb,
+    "rsrq" / Int8sb,
 )
 UE_MEASUREMENTS_SERVICE_REPORT.name = "ue_measurements_service_report"
 

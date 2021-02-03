@@ -20,13 +20,6 @@
                 "pci": "0x03",
                 "trace": "examples/trace.csv"
             }
-        },
-        {
-            "type": "ue_leave",
-            "delay": 5000,
-            "payload": {
-                "imsi": "222930100001114"
-            }
         }
     ]
 }

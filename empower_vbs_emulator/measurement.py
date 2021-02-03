@@ -18,6 +18,7 @@
 """UE Measurement."""
 
 import enum
+import csv
 
 import tornado.ioloop
 
@@ -79,6 +80,12 @@ class Measurement():
         # worker
         self.worker = None
 
+        # sample points
+        self.samples = []
+
+        # sample idx
+        self.sample_idx = 0
+
     def start(self):
         """Start measurement tasks."""
 
@@ -103,6 +110,13 @@ class Measurement():
 
         self.worker.start()
 
+        # load trace
+        self.samples = []
+        with open(self.user.trace) as csvfile:
+            reader = csv.DictReader(csvfile, delimiter=';')
+            for row in reader:
+                self.samples.append(row)
+
     def stop(self):
         """Stop measurement tasks."""
 
@@ -113,8 +127,12 @@ class Measurement():
     def loop(self):
         """Periodic loop."""
 
-        rsrp = 0
-        rsrq = 0
+        sample = self.samples[self.sample_idx]
+
+        rsrp = int(sample['rsrp'])
+        rsrq = int(sample['rsrq'])
+
+        self.sample_idx = (self.sample_idx + 1) % len(self.samples)
 
         self.user.vbs.send_ue_measurements(self.rnti, self.meas_id, rsrp, rsrq)
 

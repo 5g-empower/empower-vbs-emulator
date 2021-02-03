@@ -140,6 +140,7 @@ class VBS:
     def add_user(self, user):
         """Add a new UE."""
 
+        trace = user['trace']
         imsi = IMSI(user['imsi'])
         tmsi = int(user['tmsi'])
         rnti = self.rnti
@@ -149,7 +150,7 @@ class VBS:
         pci = int(user['pci'], 16)
         cell = self.cells[pci]
 
-        user = User(imsi, tmsi, rnti, cell, self, USER_STATUS_CONNECTED)
+        user = User(imsi, tmsi, rnti, cell, self, trace, USER_STATUS_CONNECTED)
 
         self.users[imsi] = user
         user.start()
@@ -358,6 +359,24 @@ class VBS:
                     if msg.tsrc.crud_result == vbsp.OP_CREATE:
                         user.ue_measurements[option.meas_id] = meas
                         meas.start()
+                    else:
+                        print("Service config operation unsupported")
+
+            if tlv.type == vbsp.TLV_MEASUREMENTS_SERVICE_MEAS_ID:
+
+                parser = vbsp.TLVS[tlv.type]
+                option = parser.parse(tlv.value)
+
+                for user in self.users.values():
+
+                    if user.rnti != option.rnti:
+                        continue
+
+                    meas = user.ue_measurements[option.meas_id]
+
+                    if msg.tsrc.crud_result == vbsp.OP_DELETE:
+                        meas.stop()
+                        del user.ue_measurements[option.meas_id]
                     else:
                         print("Service config operation unsupported")
 
