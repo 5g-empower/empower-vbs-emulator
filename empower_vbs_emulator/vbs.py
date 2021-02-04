@@ -301,8 +301,6 @@ class VBS:
     def _handle_capabilities_service(self, _):
         """Handle capabilities request message."""
 
-        print("Sending capabilities...")
-
         # Answer request
         self.send_capabilities_service()
 
@@ -464,6 +462,13 @@ class VBS:
         """Handle ctrl disconnection."""
 
         print("Ctrl disconnected")
+
+        # remove current user, emulation will start from beginning
+        for imsi in list(self.users):
+            user = {
+                "imsi": imsi.to_str()
+            }
+            self.rem_user(user)
 
         # The socket we will use for the connection to the runtime
         self.tcp_client = TCPClient()
