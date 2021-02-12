@@ -98,8 +98,31 @@ class Measurement():
             interval = 120
         elif interval == RRCReportInterval.MS240:
             interval = 240
+        elif interval == RRCReportInterval.MS480:
+            interval = 480
+        elif interval == RRCReportInterval.MS640:
+            interval = 640
+        elif interval == RRCReportInterval.MS1024:
+            interval = 1024
+        elif interval == RRCReportInterval.MS2048:
+            interval = 2048
+        elif interval == RRCReportInterval.MS5120:
+            interval = 5120
+        elif interval == RRCReportInterval.MS10240:
+            interval = 10240
+        elif interval == RRCReportInterval.MIN1:
+            interval = 1 * 60 * 1000
+        elif interval == RRCReportInterval.MIN6:
+            interval = 6 * 60 * 1000
+        elif interval == RRCReportInterval.MIN12:
+            interval = 12 * 60 * 1000
+        elif interval == RRCReportInterval.MIN30:
+            interval = 30 * 60 * 1000
+        elif interval == RRCReportInterval.MIN60:
+            interval = 60 * 60 * 1000
         else:
-            print("Measurement interval not supported %u" % self.interval)
+            raise ValueError("Measurement interval not supported %u" %
+                             self.interval)
 
         print("Reporting interval %u ms" % interval)
         print("Amount %s" % amount)
@@ -122,7 +145,8 @@ class Measurement():
 
         print("Stopping measurement %s" % self)
 
-        self.worker.stop()
+        if self.worker:
+            self.worker.stop()
 
     def loop(self):
         """Periodic loop."""
