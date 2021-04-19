@@ -153,8 +153,9 @@ class Measurement():
 
         sample = self.samples[self.sample_idx]
 
-        rsrp = int(sample['rsrp'])
-        rsrq = int(sample['rsrq'])
+        # use the same format an eNB would use
+        rsrp = int(sample['rsrp']) + 140
+        rsrq = int((int(sample['rsrq']) + 19.5) * 2)
 
         self.sample_idx = (self.sample_idx + 1) % len(self.samples)
 
